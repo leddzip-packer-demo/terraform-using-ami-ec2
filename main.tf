@@ -10,50 +10,10 @@ terraform {
   }
 }
 
-resource "aws_key_pair" "tf-key-pair" {
-  key_name = "tf-key-pair"
-  public_key = tls_private_key.rsa.public_key_openssh
-}
-
-resource "tls_private_key" "rsa" {
-  algorithm = "RSA"
-  rsa_bits = 4096
-}
-
-resource "local_file" "tf-key" {
-  content = tls_private_key.rsa.private_key_pem
-  filename = aws_key_pair.tf-key-pair.key_name
-}
-
 resource "aws_instance" "ec2instance" {
-  ami = "ami-0827c0525a410fc44"
+  ami = "ami-077005b1c0bc7a036"
   instance_type = "t2.micro"
-  key_name = aws_key_pair.tf-key-pair.key_name
-
-#  provisioner "file" {
-#
-#    source = "files/"
-#    destination = "/home/ubuntu"
-#
-#    connection {
-#      type = "ssh"
-#      user = "ubuntu"
-#      host = self.public_ip
-#    }
-#  }
-
-#  provisioner "remote-exec" {
-#
-#    inline = [
-#      "docker-compose -d up"
-#    ]
-#
-#    connection {
-#      type = "ssh"
-#      user = "ubuntu"
-#      host = self.public_ip
-#    }
-#  }
+  vpc_security_group_ids = [aws_security_group.ec2_22_80_8080.id]
 }
 
 resource "null_resource" "provisioning" {
@@ -61,7 +21,7 @@ resource "null_resource" "provisioning" {
     type = "ssh"
     host = aws_instance.ec2instance.public_ip
     user = "ubuntu"
-    private_key = tls_private_key.rsa.private_key_pem
+    password = "ubuntu"
   }
   provisioner "file" {
     source = "files/"
@@ -71,5 +31,40 @@ resource "null_resource" "provisioning" {
     inline = [
       "docker-compose up -d"
     ]
+  }
+
+  depends_on = [aws_instance.ec2instance]
+}
+
+resource "aws_security_group" "ec2_22_80_8080" {
+  name = "22_80_8080"
+  description = "Allow some traffic"
+
+  ingress {
+    from_port = 22
+    protocol  = "tcp"
+    to_port   = 22
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = 80
+    protocol  = "tcp"
+    to_port   = 80
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port = 8080
+    protocol  = "tcp"
+    to_port   = 8080
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port = 0
+    protocol  = "-1"
+    to_port   = 0
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
